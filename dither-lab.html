@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dither Lab Web</title>
+  <meta name="description" content="Convert PNG/JPEG into dithered art with glow, chromatic aberration, shimmer animation, and SVG/video export.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">Browser-Only Dither + Motion Tool</p>
+      <h1>Dither Lab</h1>
+      <p class="subtitle">Upload PNG/JPEG/MP4/GIF/SVG, tune dithering, add glow/chromatic aberration, add shimmering blue-noise motion, export SVG or video.</p>
+    </div>
+    <div class="header-actions">
+      <label class="button soft" for="fileInput">Upload Media</label>
+      <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm" hidden>
+      <button id="resetButton" class="button">Reset</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel controls" aria-label="Dither controls">
+      <section class="group">
+        <h2>Presets</h2>
+        <div class="preset-grid">
+          <button class="preset" data-preset="mono">Mono Dot</button>
+          <button class="preset" data-preset="gameboy">Gameboy</button>
+          <button class="preset" data-preset="vapor">Vapor</button>
+          <button class="preset" data-preset="newspaper">Newsprint</button>
+          <button class="preset" data-preset="cmyk">CMYK</button>
+          <button class="preset" data-preset="hacker">Hacker</button>
+          <button class="preset" data-preset="neon-glow">Neon Glow</button>
+          <button class="preset" data-preset="shimmer">Shimmer</button>
+          <button class="preset" data-preset="prism-bloom">Prism Bloom</button>
+          <button class="preset" data-preset="inferno-halftone">Inferno Halftone</button>
+          <button class="preset" data-preset="vintage-phosphor">Vintage Phosphor</button>
+          <button class="preset" data-preset="prismatic-glitch-gradient">Prismatic Glitch Gradient</button>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Dithering</h2>
+        <label class="field">
+          <span>Dithering Type</span>
+          <select id="ditheringType">
+            <option value="error-diffusion">Error Diffusion</option>
+            <option value="ordered">Ordered (Bayer)</option>
+            <option value="threshold">Threshold</option>
+            <option value="noise">Random Noise</option>
+            <option value="ascii">ASCII Dither</option>
+          </select>
+        </label>
+
+        <label id="diffusionField" class="field">
+          <span>Diffusion Map</span>
+          <select id="diffusionMap">
+            <option value="floyd-steinberg">Floyd-Steinberg</option>
+            <option value="atkinson">Atkinson</option>
+            <option value="jarvis">Jarvis-Judice-Ninke</option>
+            <option value="stucki">Stucki</option>
+          </select>
+        </label>
+
+        <label id="orderedField" class="field hidden">
+          <span>Matrix</span>
+          <select id="orderedMatrix">
+            <option value="bayer4">Bayer 4x4</option>
+            <option value="bayer8">Bayer 8x8</option>
+          </select>
+        </label>
+
+        <label id="thresholdField" class="field hidden">
+          <span>Threshold <output id="thresholdValue">128</output></span>
+          <input id="threshold" type="range" min="0" max="255" value="128">
+        </label>
+
+        <label id="noiseField" class="field hidden">
+          <span>Noise <output id="noiseValue">24</output></span>
+          <input id="noiseAmount" type="range" min="0" max="80" value="24">
+        </label>
+
+        <label class="field">
+          <span>Gradient Strategy</span>
+          <select id="gradientDitherMode">
+            <option value="standard">Standard</option>
+            <option value="gradient-diffusion">Gradient Diffusion</option>
+            <option value="blue-noise-ordered">Blue-Noise Ordered</option>
+          </select>
+        </label>
+        <label class="checkbox-field">
+          <input id="temporalDither" type="checkbox">
+          <span>Temporal Pattern (Static Phase)</span>
+        </label>
+        <label class="field">
+          <span>Temporal Phase <output id="temporalPhaseValue">0</output></span>
+          <input id="temporalPhase" type="range" min="0" max="63" value="0">
+        </label>
+      </section>
+
+      <section class="group">
+        <h2>Color</h2>
+        <label class="field">
+          <span>Palette Preset</span>
+          <select id="palettePreset">
+            <option value="custom">Custom</option>
+            <option value="electric-blue">Electric Blue</option>
+            <option value="amber-ochre">Amber / Ochre</option>
+          </select>
+        </label>
+        <div id="paletteEditor" class="palette-editor" aria-label="Custom palette editor">
+          <div id="paletteChipList" class="palette-chip-list"></div>
+          <div class="palette-editor-actions">
+            <button id="addPaletteColor" type="button" class="button soft">Add Color</button>
+          </div>
+        </div>
+        <details class="palette-advanced">
+          <summary>Advanced: paste hex list</summary>
+          <label class="field">
+            <span>Custom Palette (comma hex)</span>
+            <input id="customPalette" type="text" value="">
+          </label>
+        </details>
+        <div class="swatches">
+          <label class="field">
+            <span>Foreground</span>
+            <input id="foregroundColor" type="color" value="#03140f">
+          </label>
+          <label class="field">
+            <span>Background</span>
+            <input id="backgroundColor" type="color" value="#efe8d2">
+          </label>
+          <label class="field">
+            <span>Accent</span>
+            <input id="accentColor" type="color" value="#41b6c4">
+          </label>
+        </div>
+
+        <label class="checkbox-field">
+          <input id="accentEnabled" type="checkbox">
+          <span>Use Accent Color</span>
+        </label>
+
+        <label class="field">
+          <span>Palette Steps <output id="paletteValue">2</output></span>
+          <input id="paletteSteps" type="range" min="2" max="8" value="2">
+        </label>
+      </section>
+
+      <section class="group">
+        <h2>Image</h2>
+        <label class="field">
+          <span>Brightness <output id="brightnessValue">0</output></span>
+          <input id="brightness" type="range" min="-100" max="100" value="0">
+        </label>
+
+        <label class="field">
+          <span>Contrast <output id="contrastValue">18</output></span>
+          <input id="contrast" type="range" min="-100" max="100" value="18">
+        </label>
+
+        <label class="field">
+          <span>Gamma <output id="gammaValue">1.00</output></span>
+          <input id="gamma" type="range" min="50" max="250" value="100">
+        </label>
+
+        <label class="field">
+          <span>Saturation <output id="saturationValue">100%</output></span>
+          <input id="saturation" type="range" min="0" max="200" value="100">
+        </label>
+
+        <label class="field">
+          <span>Hue Shift <output id="hueValue">0°</output></span>
+          <input id="hueShift" type="range" min="-180" max="180" value="0">
+        </label>
+
+        <label class="field">
+          <span>Pixelation <output id="pixelSizeValue">3x</output></span>
+          <input id="pixelSize" type="range" min="1" max="12" value="3">
+        </label>
+
+        <label class="field">
+          <span>Maximum Width</span>
+          <input id="maxWidth" type="number" min="240" max="4096" value="1400">
+        </label>
+
+        <label class="checkbox-field">
+          <input id="invert" type="checkbox">
+          <span>Invert Output</span>
+        </label>
+      </section>
+
+      <section class="group">
+        <h2>Emissive Tone</h2>
+        <label class="field">
+          <span>Exposure <output id="exposureValue">0.00</output></span>
+          <input id="exposure" type="range" min="-200" max="200" value="0">
+        </label>
+        <label class="field">
+          <span>Contrast Curve <output id="contrastCurveValue">0</output></span>
+          <input id="contrastCurve" type="range" min="-100" max="100" value="0">
+        </label>
+        <label class="field">
+          <span>Highlight Clip <output id="highlightClipValue">0.92</output></span>
+          <input id="highlightClip" type="range" min="50" max="100" value="92">
+        </label>
+        <label class="field">
+          <span>Soft Knee <output id="softKneeValue">0.14</output></span>
+          <input id="softKnee" type="range" min="0" max="60" value="14">
+        </label>
+        <label class="field">
+          <span>Brightness Bias <output id="brightnessBiasValue">0.00</output></span>
+          <input id="brightnessBias" type="range" min="-60" max="60" value="0">
+        </label>
+        <label class="field">
+          <span>Black Level <output id="blackLevelValue">0.00</output></span>
+          <input id="blackLevel" type="range" min="0" max="60" value="0">
+        </label>
+      </section>
+
+      <section class="group">
+        <h2>Post FX</h2>
+        <label class="checkbox-field">
+          <input id="glowEnabled" type="checkbox" checked>
+          <span>Enable Bloom</span>
+        </label>
+        <label class="field">
+          <span>Bloom Intensity <output id="glowIntensityValue">45%</output></span>
+          <input id="glowIntensity" type="range" min="0" max="100" value="45">
+        </label>
+        <label class="field">
+          <span>Bloom Threshold <output id="bloomThresholdValue">0.72</output></span>
+          <input id="bloomThreshold" type="range" min="0" max="100" value="72">
+        </label>
+        <label class="field">
+          <span>Bloom Radius <output id="glowRadiusValue">8px</output></span>
+          <input id="glowRadius" type="range" min="0" max="36" value="8">
+        </label>
+        <label class="field">
+          <span>Blur Passes <output id="glowIterationsValue">2</output></span>
+          <input id="glowIterations" type="range" min="1" max="8" value="2">
+        </label>
+        <label class="field">
+          <span>Bloom Tint</span>
+          <input id="bloomTint" type="color" value="#66d6ff">
+        </label>
+        <label class="field">
+          <span>Halo <output id="bloomHaloValue">18%</output></span>
+          <input id="bloomHalo" type="range" min="0" max="100" value="18">
+        </label>
+        <label class="field">
+          <span>Glow Grain <output id="bloomGrainValue">8%</output></span>
+          <input id="bloomGrain" type="range" min="0" max="100" value="8">
+        </label>
+
+        <label class="checkbox-field">
+          <input id="chromaEnabled" type="checkbox">
+          <span>Enable Chromatic Aberration</span>
+        </label>
+        <label class="field">
+          <span>Chromatic Mode</span>
+          <select id="chromaMode">
+            <option value="radial">Radial</option>
+            <option value="linear">Linear</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Chromatic Strength <output id="chromaStrengthValue">2.0</output></span>
+          <input id="chromaStrength" type="range" min="0" max="120" value="20">
+        </label>
+        <label class="field">
+          <span>Linear Direction <output id="chromaAngleValue">0°</output></span>
+          <input id="chromaAngle" type="range" min="-180" max="180" value="0">
+        </label>
+        <label class="field">
+          <span>Split Balance <output id="chromaBalanceValue">1.00</output></span>
+          <input id="chromaBalance" type="range" min="20" max="200" value="100">
+        </label>
+        <label class="field">
+          <span>Edge Weighting <output id="chromaEdgeWeightValue">0.60</output></span>
+          <input id="chromaEdgeWeight" type="range" min="0" max="100" value="60">
+        </label>
+        <div class="three-up">
+          <label class="field">
+            <span>R Mag <output id="rShiftValue">1.00</output></span>
+            <input id="rShift" type="range" min="-200" max="200" value="100">
+          </label>
+          <label class="field">
+            <span>G Mag <output id="gShiftValue">0.00</output></span>
+            <input id="gShift" type="range" min="-200" max="200" value="0">
+          </label>
+          <label class="field">
+            <span>B Mag <output id="bShiftValue">-1.00</output></span>
+            <input id="bShift" type="range" min="-200" max="200" value="-100">
+          </label>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Animation</h2>
+        <label class="checkbox-field">
+          <input id="animatePreview" type="checkbox" checked>
+          <span>Animate Preview</span>
+        </label>
+        <label class="checkbox-field">
+          <input id="shimmerEnabled" type="checkbox">
+          <span>Shimmer Overlay</span>
+        </label>
+        <label class="field">
+          <span>Noise Mode</span>
+          <select id="shimmerNoiseType">
+            <option value="blue">Blue Noise</option>
+            <option value="value">Value Noise</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Shimmer Amount <output id="shimmerAmountValue">18%</output></span>
+          <input id="shimmerAmount" type="range" min="0" max="100" value="18">
+        </label>
+        <label class="field">
+          <span>Shimmer Scale <output id="shimmerScaleValue">7</output></span>
+          <input id="shimmerScale" type="range" min="2" max="28" value="7">
+        </label>
+        <label class="field">
+          <span>Shimmer Speed <output id="shimmerSpeedValue">1.2</output></span>
+          <input id="shimmerSpeed" type="range" min="1" max="60" value="12">
+        </label>
+
+        <label class="checkbox-field">
+          <input id="waveEnabled" type="checkbox">
+          <span>Wave / Warp Motion</span>
+        </label>
+        <label class="field">
+          <span>Wave Frequency <output id="waveFrequencyValue">1.8</output></span>
+          <input id="waveFrequency" type="range" min="1" max="80" value="18">
+        </label>
+        <label class="field">
+          <span>Wave Amplitude <output id="waveAmplitudeValue">10%</output></span>
+          <input id="waveAmplitude" type="range" min="0" max="100" value="10">
+        </label>
+        <label class="field">
+          <span>Wave Speed <output id="waveSpeedValue">1.0</output></span>
+          <input id="waveSpeed" type="range" min="1" max="80" value="10">
+        </label>
+
+        <label class="field">
+          <span>Export Duration (s) <output id="exportDurationValue">5</output></span>
+          <input id="exportDuration" type="range" min="1" max="12" value="5">
+        </label>
+        <label class="field">
+          <span>Export FPS <output id="exportFpsValue">24</output></span>
+          <input id="exportFps" type="range" min="12" max="60" value="24">
+        </label>
+      </section>
+
+      <section id="asciiOptions" class="group hidden">
+        <h2>ASCII</h2>
+        <label class="field">
+          <span>Character Set</span>
+          <input id="asciiChars" type="text" value=" .,:;irsXA253hMHGS#9B&@">
+        </label>
+        <label class="field">
+          <span>Character Width <output id="asciiCellValue">4</output></span>
+          <input id="asciiCell" type="range" min="2" max="12" value="4">
+        </label>
+      </section>
+
+      <section class="group">
+        <h2>Transparency</h2>
+        <label class="checkbox-field">
+          <input id="transparentExport" type="checkbox">
+          <span>Transparent Background Export (PNG/WebP)</span>
+        </label>
+        <label class="checkbox-field">
+          <input id="previewBgEnabled" type="checkbox" checked>
+          <span>Preview Background Color</span>
+        </label>
+        <label class="field">
+          <span>Preview Background</span>
+          <input id="previewBgColor" type="color" value="#f3f3f1">
+        </label>
+      </section>
+    </aside>
+
+    <section class="panel workspace">
+      <div class="workspace-top">
+        <p id="statusLine">Load an image to start.</p>
+        <div class="export-actions">
+          <button id="downloadSvg" class="button">Download SVG</button>
+          <button id="downloadAnimatedSvg" class="button">Animated SVG</button>
+          <button id="downloadPng" class="button">PNG</button>
+          <button id="downloadWebp" class="button">WebP</button>
+          <button id="downloadVideo" class="button">MP4 / WebM</button>
+          <button id="downloadTxt" class="button soft">ASCII TXT</button>
+        </div>
+      </div>
+
+      <div id="compareStage" class="compare-stage" aria-label="Original and dithered comparison">
+        <canvas id="originalCanvas"></canvas>
+        <div id="processedClip" class="processed-clip">
+          <canvas id="processedCanvas"></canvas>
+        </div>
+        <button id="compareHandle" class="compare-handle" aria-label="Drag to compare" title="Drag to compare" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+          <span></span>
+        </button>
+      </div>
+
+      <div id="asciiPanel" class="ascii-panel hidden">
+        <h3>ASCII Output</h3>
+        <pre id="asciiText"></pre>
+      </div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
