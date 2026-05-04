@@ -64,4 +64,4 @@ dither-studio/
 
 ## License
 
-MIT (add `LICENSE` file if you want this explicitly published with the repo)
+MIT
