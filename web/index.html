@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dither Lab</title>
+  <meta name="description" content="Dithering, halftone and ASCII studio with bloom, halation, chromatic aberration and frame-exact motion export.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#1f1f20">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="./styles.css?v=2.1.0">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Dither Lab</div>
+      <button class="tb-btn" id="openBtn" type="button" title="Open image, GIF, SVG or video (⌘O) — or drop / paste anywhere">Open…</button>
+      <div class="file-meta" id="fileMeta"></div>
+      <div class="grow"></div>
+      <div class="tb-group">
+        <button class="tb-btn icon" id="undoBtn" type="button" title="Undo (⌘Z)" aria-label="Undo"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M5.5 3.5 2.5 6.5l3 3M3 6.5h6.25a3.75 3.75 0 0 1 0 7.5H7.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="tb-btn icon" id="redoBtn" type="button" title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="m10.5 3.5 3 3-3 3M13 6.5H6.75a3.75 3.75 0 0 0 0 7.5H8.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div class="tb-group" role="group" aria-label="Compare">
+        <button class="tb-btn" id="splitBtn" type="button" title="Before / after split (Y)">Split</button>
+        <button class="tb-btn" id="origBtn" type="button" title="Hold to show the original (hold \)">Original</button>
+      </div>
+      <div class="tb-group" role="group" aria-label="Zoom">
+        <button class="tb-btn" id="fitBtn" type="button" title="Fit (⌘0 · Z toggles)">Fit</button>
+        <button class="tb-btn" id="oneBtn" type="button" title="Actual pixels (⌘1)">1:1</button>
+        <span class="zoom-read" id="zoomRead">—</span>
+        <button class="tb-btn icon" id="bgBtn" type="button" title="Viewer background" aria-label="Viewer background"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor"/></svg></button>
+      </div>
+      <button class="tb-btn icon" id="helpBtn" type="button" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
+      <button class="tb-btn primary" id="exportBtn" type="button" title="Export (⌘E · ⇧⌘E quick PNG)">Export</button>
+    </header>
+
+    <aside class="side left" id="leftPanel" aria-label="Presets and history">
+      <section class="lp-section presets">
+        <div class="lp-head">
+          <h2>Presets</h2>
+          <button class="icon-btn" id="savePresetBtn" type="button" title="Save current look as a preset (⌘S)" aria-label="Save preset">＋</button>
+          <button class="icon-btn" id="presetMenuBtn" type="button" title="Import / export presets" aria-label="Preset options">⋯</button>
+        </div>
+        <div class="preset-list" id="presetList"></div>
+      </section>
+      <section class="lp-section history">
+        <div class="lp-head">
+          <h2>History</h2>
+          <button class="icon-btn text" id="resetAllBtn" type="button" title="Reset every setting (undoable)">Reset all</button>
+        </div>
+        <ol class="history-list" id="historyList"></ol>
+      </section>
+    </aside>
+
+    <main class="stage">
+      <div class="viewport" id="viewport" tabindex="0" aria-label="Preview. Drag to pan, pinch or ⌘-scroll to zoom, double-click to toggle fit / 100%.">
+        <canvas id="view"></canvas>
+        <div class="split-line" id="splitLine" title="Drag to move the split"><span></span></div>
+        <div class="hud" id="hud"></div>
+        <div class="drop" id="drop"><div>Drop an image, GIF, SVG or video</div></div>
+        <div class="busy" id="busy" role="status" aria-live="polite">
+          <div class="busy-card">
+            <div id="busyText">Working…</div>
+            <div class="bar hide"><i id="busyBar"></i></div>
+            <button class="tb-btn hide" id="busyCancel" type="button">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div class="transport" id="transport">
+        <button class="tb-btn icon" id="playBtn" type="button" title="Play / pause (Space)" aria-label="Pause"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="4" y="3" width="2.6" height="10" rx="0.6" fill="currentColor"/><rect x="9.4" y="3" width="2.6" height="10" rx="0.6" fill="currentColor"/></svg></button>
+        <button class="tb-btn icon" id="stepBack" type="button" title="Previous frame (,)" aria-label="Previous frame"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="tb-btn icon" id="stepFwd" type="button" title="Next frame (.)" aria-label="Next frame"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="time" id="timeNow">00:00.00</span>
+        <div class="timeline" id="scrub" aria-label="Timeline"><div class="scrub-fill" id="scrubFill"></div><div class="scrub-thumb" id="scrubThumb"></div></div>
+        <span class="time dim" id="timeDur">00:04.00</span>
+      </div>
+    </main>
+
+    <aside class="side right" id="inspector" aria-label="Adjustments"></aside>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*,video/*,.gif,.svg,.mp4,.webm,.mov" hidden>
+
+  <dialog id="exportDialog" class="dlg" aria-labelledby="exTitle">
+    <form class="dlg-body" id="exportForm">
+      <h2 id="exTitle">Export</h2>
+      <div class="ex-formats seg" id="exFormats" role="group" aria-label="Format"></div>
+      <div class="ex-row" id="exScaleRow">
+        <span class="ex-lbl">Scale</span>
+        <div class="seg" id="exScale" role="group" aria-label="Scale"></div>
+        <span class="dim" id="exDims"></span>
+      </div>
+      <div id="exMotion">
+        <div class="ex-row">
+          <span class="ex-lbl">Duration</span>
+          <input id="exDur" class="num-in" type="number" min="0.1" max="600" step="0.1" value="4"> <span class="dim">s</span>
+          <button type="button" class="mini-btn" id="exFull">Full length</button>
+        </div>
+        <div class="ex-row">
+          <span class="ex-lbl">Frame rate</span>
+          <select id="exFps" class="select">
+            <option value="12">12</option><option value="15">15</option><option value="24">24</option><option value="25">25</option>
+            <option value="30">30</option><option value="50">50</option><option value="60">60</option>
+          </select>
+          <span class="ex-lbl right">Quality</span>
+          <select id="exQuality" class="select">
+            <option value="standard">Standard</option><option value="high">High</option><option value="max">Max</option>
+          </select>
+        </div>
+      </div>
+      <div class="ex-row">
+        <span class="ex-lbl">Name</span>
+        <input id="exName" class="text-in" type="text" spellcheck="false">
+      </div>
+      <p class="ex-note" id="exNote"></p>
+      <div class="dlg-actions">
+        <button type="button" class="tb-btn" id="exCopy" title="Copy a PNG to the clipboard (⌘C)">Copy PNG</button>
+        <span class="grow"></span>
+        <button type="button" class="tb-btn" id="exCancel">Cancel</button>
+        <button type="submit" class="tb-btn primary" id="exGo">Export</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="helpDialog" class="dlg" aria-labelledby="helpTitle">
+    <div class="dlg-body help">
+      <h2 id="helpTitle">Shortcuts</h2>
+      <div class="keys">
+        <div><kbd>⌘O</kbd> Open · drop or <kbd>⌘V</kbd> paste anywhere</div>
+        <div><kbd>⌘E</kbd> Export · <kbd>⇧⌘E</kbd> quick PNG · <kbd>⌘C</kbd> copy PNG</div>
+        <div><kbd>⌘Z</kbd> Undo · <kbd>⇧⌘Z</kbd> Redo</div>
+        <div><kbd>⌘S</kbd> Save current look as preset</div>
+        <div><kbd>1</kbd>–<kbd>7</kbd> Dither mode</div>
+        <div><kbd>[</kbd> <kbd>]</kbd> Pixel / cell / glyph size</div>
+        <div><kbd>Y</kbd> Before/after split · hold <kbd>\</kbd> original</div>
+        <div><kbd>Z</kbd> Fit ↔ 100% · <kbd>⌘0</kbd> fit · <kbd>⌘1</kbd> 100% · <kbd>⌘±</kbd> zoom</div>
+        <div>Drag or two-finger scroll to pan · pinch / <kbd>⌘</kbd>-scroll to zoom · double-click toggles</div>
+        <div><kbd>Space</kbd> Play / pause · <kbd>,</kbd> <kbd>.</kbd> step frame</div>
+        <div><kbd>Tab</kbd> Hide panels · <kbd>Esc</kbd> cancel preset preview</div>
+        <div class="dim">Sliders: drag the label to scrub, <kbd>⇧</kbd> for fine control, double-click to reset, click the number to type (↑↓ to nudge).</div>
+        <div class="dim">Presets: hover to preview on the image, click to apply. Moving a slider in a switched-off panel turns it on.</div>
+      </div>
+      <div class="dlg-actions"><span class="grow"></span><button type="button" class="tb-btn primary" id="helpClose">Done</button></div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/util.js?v=2.1.0"></script>
+  <script src="js/engine.js?v=2.1.0"></script>
+  <script src="js/gl.js?v=2.1.0"></script>
+  <script src="js/export.js?v=2.1.0"></script>
+  <script src="js/ui.js?v=2.1.0"></script>
+  <script src="js/app.js?v=2.1.0"></script>
+</body>
+</html>
